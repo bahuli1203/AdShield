@@ -1,0 +1,25 @@
+# Environments
+venv/
+env/
+.env
+__pycache__/
+*.pyc
+
+# IDEs
+.vscode/
+.idea/
+
+# Large Model Files
+*.pt
+*.onnx
+
+# Media & Uploads
+*.mp4
+*.avi
+*.mov
+*.mkv
+uploads/
+
+# Auto-generated processing folders
+frames/
+results/

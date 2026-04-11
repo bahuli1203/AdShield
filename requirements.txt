@@ -1,0 +1,13 @@
+streamlit>=1.28.0
+opencv-python>=4.8.0
+ultralytics>=8.0.0
+nudenet>=3.4.2
+tensorflow>=2.13.0
+numpy>=1.24.0
+matplotlib>=3.7.0
+Pillow>=10.0.0
+moviepy>=1.0.3
+yt-dlp>=2023.12.30
+openai-whisper>=20231117
+scipy>=1.11.0
+mediapipe>=0.10.9
