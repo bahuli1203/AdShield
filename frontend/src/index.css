@@ -1,0 +1,62 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Google Brand Colors */
+:root {
+  --google-blue:   #4285F4;
+  --google-red:    #EA4335;
+  --google-yellow: #FBBC05;
+  --google-green:  #34A853;
+}
+
+@layer base {
+  body {
+    @apply bg-slate-50 text-slate-800 font-sans antialiased;
+  }
+}
+
+@layer components {
+  .card {
+    @apply bg-white rounded-2xl shadow-card border border-slate-100;
+  }
+  .badge-safe {
+    @apply inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200;
+  }
+  .badge-borderline {
+    @apply inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200;
+  }
+  .badge-violation {
+    @apply inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-orange-50 text-orange-700 border border-orange-200;
+  }
+  .badge-highrisk {
+    @apply inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-red-50 text-red-700 border border-red-200;
+  }
+  .btn-primary {
+    @apply flex items-center justify-center gap-2 px-5 py-2.5 text-white font-semibold rounded-xl transition-all duration-200 shadow-sm hover:shadow-md active:scale-95;
+    background-color: var(--google-blue);
+  }
+  .btn-primary:hover {
+    background-color: #3367d6;
+  }
+  .btn-primary:disabled:hover {
+    background-color: var(--google-blue);
+  }
+  .btn-ghost {
+    @apply flex items-center gap-2 px-3 py-2 rounded-xl text-slate-600 hover:bg-slate-50 hover:text-slate-900 font-medium transition-all duration-150;
+  }
+  .toggle-track {
+    @apply relative inline-flex h-5 w-9 cursor-pointer items-center rounded-full transition-colors duration-200;
+  }
+  .toggle-thumb {
+    @apply absolute left-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform duration-200;
+  }
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { @apply bg-transparent; }
+::-webkit-scrollbar-thumb { @apply bg-slate-200 rounded-full; }
+::-webkit-scrollbar-thumb:hover { @apply bg-slate-300; }
+

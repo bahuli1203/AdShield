@@ -99,14 +99,13 @@ SCENE_FLAG_KEYWORDS = [
 
 # ─── NSFW ──────────────────────────────────────
 # Lower threshold = more sensitive (more true positives, more false positives)
-NSFW_CONFIDENCE_THRESHOLD = 0.30   # Dropped to 0.30 to allow high-sensitivity slider settings to work
+NSFW_CONFIDENCE_THRESHOLD = 0.45   # Increased to avoid false positives on limbs/skin holding objects
 
 # NudeNet explicit labels that constitute a definitive violation
 NSFW_VIOLATION_LABELS = [
     "FEMALE_GENITALIA_EXPOSED",
     "MALE_GENITALIA_EXPOSED",
     "FEMALE_BREAST_EXPOSED",
-    "ANUS_EXPOSED",
     "BUTTOCKS_EXPOSED"
 ]
 

@@ -43,9 +43,9 @@ class ScoreAggregator:
             ctx_count = len(object_result.get("contextual_hits", []))
             ctx_obj_score = min(0.25, ctx_count * 0.08)   # soft penalty, max 0.25
 
-        # ── Per-detector clamping — no single model can dominate ─────────────
-        obj_score    = min(obj_score,    0.95)
-        nsfw_score   = min(nsfw_score,   0.95)
+        # ── Per-detector clamping ───────────────────────────────────────────
+        obj_score    = min(obj_score,    1.0)
+        nsfw_score   = min(nsfw_score,   1.0)
         scene_score  = min(scene_score,  0.90)
 
         # ── CLIP scene confidence gate — dampen weak/uncertain predictions ───
@@ -53,7 +53,6 @@ class ScoreAggregator:
         if 0 < scene_score < 0.50:
             scene_score *= 0.5
 
-        # ── Weighted sum ────────────────────────────────────────────────────
         weighted_sum = (
             obj_score       * w.get("object_detection",     0.75) +
             ctx_obj_score   * 0.35 +                                   # soft contextual hit
@@ -62,6 +61,14 @@ class ScoreAggregator:
             motion_score    * w.get("motion",               0.20) +
             action_score    * w.get("action_recognition",   0.60)
         )
+
+        # ── Explicit Policy Breach Guarantees ───────────────────────────────
+        # If an explicit adult content hit or a critical weapon is detected, 
+        # guarantee it automatically crosses the 'HIGH RISK' or 'VIOLATION' boundary.
+        if nsfw_score > 0.50:
+            weighted_sum = max(weighted_sum, 0.76) # Force HIGH RISK
+        elif obj_severity == "critical" and obj_score > 0.50:
+            weighted_sum = max(weighted_sum, 0.76) # Force HIGH RISK
 
         # ── Multi-signal corroboration boost ────────────────────────────────
         # Independent strong detector signals (>0.15) corroborate each other

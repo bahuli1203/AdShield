@@ -23,12 +23,24 @@ class SceneClassifier:
             
             # Setup semantic prompts
             self.prompts = [
-                "a photo of weapons or violence",
+                "a photo of people fighting or physical combat",
+                "a photo of someone holding a weapon or knife",
+                "a photo of an explosion, fire, or warfare",
                 "a photo of adult content or nudity",
                 "a photo of illegal drugs or drug use",
                 "a photo of alcohol or drinking",
                 "a safe commercial advertisement",
-                "a normal everyday scene"
+                "a normal everyday scene",
+                "a portrait or conversation"
+            ]
+            
+            self.unsafe_prompts = [
+                "a photo of people fighting or physical combat",
+                "a photo of someone holding a weapon or knife",
+                "a photo of an explosion, fire, or warfare",
+                "a photo of adult content or nudity",
+                "a photo of illegal drugs or drug use",
+                "a photo of alcohol or drinking"
             ]
             
             self.available = True
@@ -78,20 +90,12 @@ class SceneClassifier:
                 for p in pred_scores
             ]
             
-            # Check for violations
-            unsafe_prompts = [
-                "a photo of weapons or violence",
-                "a photo of adult content or nudity",
-                "a photo of illegal drugs or drug use",
-                "a photo of alcohol or drinking"
-            ]
-            
             is_flagged = False
             flag_conf = 0.0
             reasons = []
             
             for p, score in pred_scores:
-                if p in unsafe_prompts and score >= 0.35: # Scene threshold
+                if p in self.unsafe_prompts and score >= 0.20: # Lowered threshold because softmax is spread across more classes
                     is_flagged = True
                     flag_conf = max(flag_conf, score)
                     reasons.append(f"{p} ({score:.0%})")

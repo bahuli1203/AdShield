@@ -54,7 +54,11 @@ class NSFWDetector:
                 # Check if it is explicitly an explicit violation
                 if label in self.violation_labels and score >= self.threshold:
                     categories.add(label)
-                    max_conf = max(max_conf, score)
+                    # Ad Policy fix: NudeNet often outputs lower confidences (~0.35) 
+                    # for true positive policy breaches. We boost the raw score here
+                    # so it reflects "high level" danger mathematically.
+                    boosted_score = min((score * 1.5) + 0.25, 0.98)
+                    max_conf = max(max_conf, boosted_score)
 
             if categories:
                 result_dict["violation_detected"] = True
