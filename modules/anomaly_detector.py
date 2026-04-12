@@ -22,9 +22,10 @@ class AnomalyDetector:
         mean_score = np.mean(scores)
         std_score = np.std(scores)
         
-        # Prevent division by zero if all scores are identical
-        if std_score < 1e-5:
-            std_score = 1e-5
+        # Prevent mathematical explosion (Z-score infinity) on completely flat/calm videos.
+        # We enforce a baseline noise expectation of 0.08 variance.
+        if std_score < 0.08:
+            std_score = 0.08
             
         anomalies_count = 0
         

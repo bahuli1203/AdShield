@@ -10,37 +10,69 @@ FACE_MASK_BLUR = 35            # Blur kernel size (must be odd)
 OUTPUT_FRAME_WIDTH = 640       # Resize frames for processing
 
 # ─── YOLO ────────────────────────────────────
-# yolov8n.pt = fastest but least accurate (nano)
-# yolov8s.pt = better accuracy, still fast     ← recommended
-# yolov8m.pt = best accuracy, slower           (use if GPU available)
-YOLO_MODEL = "yolov8s.pt"
-YOLO_MIN_CONFIDENCE = 0.35     # Ignore detections below this confidence
+# Upgraded to YOLO-World (Zero-Shot) - allows custom text classes to be accurately mapped
+YOLO_MODEL = "yolov8s-worldv2.pt"
+YOLO_MIN_CONFIDENCE = 0.15     # Custom text classes sometimes have naturally lower confidence limits
 
-# ─── Banned COCO-80 classes ──────────────────
-# NOTE: COCO-80 does NOT include "gun", "pistol", "rifle", "cigarette", "syringe".
-# These are NOT in the COCO dataset — do not add them or they will never match.
-# For firearms/drugs, a custom-trained model would be required (future upgrade).
-# Classes below ARE present in COCO-80 and WILL trigger correctly:
-BANNED_OBJECT_CLASSES = [
-    # Sharp weapons
+# ─── YOLO-World Severity Tiers ───────────────
+# Each tier has its own confidence threshold.
+# CRITICAL: Very low threshold → catch it even if YOLO is slightly unsure.
+# HIGH_RISK: Medium threshold → needs reasonable confidence.
+# CONTEXTUAL: Standard threshold → soft penalty only, not a hard violation.
+
+YOLO_CRITICAL_CLASSES = [
+    # Firearms — most severe, catch with high sensitivity
+    "handgun",
+    "pistol",
+    "shotgun",
+    "assault rifle",
+    "machine gun",
+    "firearm",
+    # Bladed weapons
     "knife",
-    "scissors",
-    # Alcohol containers (bottle includes any bottle; wine glass, beer glass not in COCO)
+    "machete",
+    "sword",
+    "blade",
+    # Drugs paraphernalia
+    "syringe",
+    "hypodermic needle",
+    # Violence symbols
+    "grenade",
+    "bomb",
+    "explosive device",
+]
+YOLO_CRITICAL_CONFIDENCE = 0.12   # Low threshold — these are so dangerous, catch even uncertain detections
+
+YOLO_HIGH_RISK_CLASSES = [
+    # Smoking / tobacco
+    "cigarette",
+    "cigar",
+    "vape",
+    "smoking pipe",
+    # Drug substances
+    "cannabis",
+    "marijuana",
+    "cocaine",
+    # Dangerous objects
+    "brass knuckles",
+    "taser",
+    "whip",
+]
+YOLO_HIGH_RISK_CONFIDENCE = 0.20   # Medium threshold
+
+# Backwards compatibility — aggregator and old code still reference these
+BANNED_OBJECT_CLASSES = YOLO_CRITICAL_CLASSES + YOLO_HIGH_RISK_CLASSES
+
+# Classes to flag but at lower severity (soft contextual penalty only)
+CONTEXTUAL_OBJECT_CLASSES = [
     "bottle",
     "wine glass",
-    "cup",          # used to hold alcohol — contextual flag
-    # Sports/recreation items that can double as weapons
+    "beer can",
+    "alcohol bottle",
     "baseball bat",
-    "sports ball",  # context-dependent — lower weight
-    "tennis racket",
+    "axe",
 ]
-
-# Classes to flag but at lower severity (contextual — not outright banned)
-CONTEXTUAL_OBJECT_CLASSES = [
-    "cell phone",  # distracted driving context
-    "laptop",
-    "remote",
-]
+YOLO_CONTEXTUAL_CONFIDENCE = 0.30  # Higher threshold — only flag if clearly visible
 
 # ─── Scene classification ─────────────────────
 # Keywords matched against ImageNet class names (1000 classes).
@@ -67,15 +99,15 @@ SCENE_FLAG_KEYWORDS = [
 
 # ─── NSFW ──────────────────────────────────────
 # Lower threshold = more sensitive (more true positives, more false positives)
-NSFW_CONFIDENCE_THRESHOLD = 0.40   # Was 0.5 — catch more borderline NSFW
+NSFW_CONFIDENCE_THRESHOLD = 0.30   # Dropped to 0.30 to allow high-sensitivity slider settings to work
 
-# NudeNet labels that are NOT considered violations (too generic / benign)
-NSFW_SAFE_LABELS = [
-    "FACE_FEMALE", "FACE_MALE",
-    "ARMPITS_EXPOSED", "ARMPITS_COVERED",
-    "FEET_EXPOSED", "FEET_COVERED",
-    "BELLY_COVERED",
-    "BELLY_EXPOSED",      # Removed from safe — belly exposed can be contextual, but too noisy
+# NudeNet explicit labels that constitute a definitive violation
+NSFW_VIOLATION_LABELS = [
+    "FEMALE_GENITALIA_EXPOSED",
+    "MALE_GENITALIA_EXPOSED",
+    "FEMALE_BREAST_EXPOSED",
+    "ANUS_EXPOSED",
+    "BUTTOCKS_EXPOSED"
 ]
 
 # ─── Score weights ────────────────────────────
@@ -85,7 +117,6 @@ SCORE_WEIGHTS = {
     "object_detection":    0.75,
     "nsfw_detection":      0.75,
     "scene_classification": 0.35,
-    "audio":               0.55,
     "motion":              0.20,
     "action_recognition":  0.60,
 }
@@ -96,5 +127,4 @@ MULTI_SIGNAL_BOOST = 0.10
 # ─── Motion ──────────────────────────────────
 MOTION_THRESHOLD = 6.0     # Lowered from 8.0 → catches more sudden/violent motion
 
-# ─── Whisper ──────────────────────────────────
-WHISPER_MODEL = "tiny"     # tiny | base | small  (no API key needed, fully offline)
+

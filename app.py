@@ -14,7 +14,6 @@ from modules.score_aggregator import ScoreAggregator
 from modules.report_generator import ReportGenerator
 from modules.video_downloader import download_video_from_url
 from modules.optical_flow import OpticalFlowAnalyzer
-from modules.audio_analyzer import AudioAnalyzer
 from modules.action_recognizer import ActionRecognizer
 from modules.anomaly_detector import AnomalyDetector
 
@@ -121,21 +120,12 @@ def run_analysis(video_path: str, cfg: dict):
     scene_clf        = SceneClassifier()               if cfg["use_scene"]  else None
     face_proc        = FaceProcessor()
     flow_analyzer    = OpticalFlowAnalyzer(motion_threshold=config.MOTION_THRESHOLD) if cfg["use_motion"] else None
-    audio_analyzer   = AudioAnalyzer()                if cfg["use_audio"]  else None
     action_rec       = ActionRecognizer()             if cfg["use_action"] else None
     anomaly_det      = AnomalyDetector()              if cfg["use_anomaly"] else None
     score_agg        = ScoreAggregator()
     report_gen       = ReportGenerator(results_dir=results_dir)
 
-    # ── Audio analysis (whole video, once) ────
-    audio_result = {"available": False, "transcript": "", "flagged_words": [],
-                    "categories": [], "violation_detected": False, "confidence": 0.0}
-    if audio_analyzer and audio_analyzer.available:
-        status.info("🎵  Transcribing audio with Whisper… (this may take a minute)")
-        try:
-            audio_result = audio_analyzer.analyze(video_path)
-        except Exception as e:
-            _log_error(results_dir, f"AudioAnalyzer: {e}")
+
 
     # ── Frame extraction ───────────────────────
     status.info("📹  Extracting frames from video…")
@@ -211,15 +201,15 @@ def run_analysis(video_path: str, cfg: dict):
             except Exception:
                 pass
 
-        # Score — pass audio + motion + action into aggregator
+        # Score — pass motion + action into aggregator
         try:
-            b_agg = score_agg.aggregate(b_obj, b_nsfw, b_scene, audio_result, b_motion, b_action)
+            b_agg = score_agg.aggregate(b_obj, b_nsfw, b_scene, b_motion, b_action)
         except Exception:
             b_agg = {
                 "final_score": 0.0, "risk_level": "SAFE",
                 "violation_reasons": [],
                 "component_scores": {"object_detection": 0.0, "nsfw_detection": 0.0,
-                                     "scene_classification": 0.0, "audio": 0.0, "motion": 0.0, "action": 0.0}
+                                     "scene_classification": 0.0, "motion": 0.0, "action": 0.0}
             }
 
         all_res.append({
@@ -257,7 +247,7 @@ def run_analysis(video_path: str, cfg: dict):
     status.empty()
     bar.empty()
 
-    return {"frames": all_res, "report": report, "audio": audio_result}
+    return {"frames": all_res, "report": report}
 
 
 # ─────────────────────────────────────────────
@@ -279,7 +269,7 @@ for key, default in [
 c1, c2 = st.columns([1, 11])
 c1.markdown("<div style='font-size:3rem;line-height:1.1'>🛡️</div>", unsafe_allow_html=True)
 c2.markdown("## AdShield — Ad Policy Violation Detector")
-c2.markdown("<p style='color:#6b7280;margin-top:-8px'>Multimodal AI content moderation: object detection · NSFW · scene analysis · audio transcription · motion anomaly</p>", unsafe_allow_html=True)
+c2.markdown("<p style='color:#6b7280;margin-top:-8px'>Multimodal AI content moderation: object detection · NSFW · scene analysis · motion anomaly · action recognition</p>", unsafe_allow_html=True)
 st.divider()
 
 
@@ -299,7 +289,6 @@ with st.sidebar:
     use_object = st.toggle("🎯 Object Detection (weapons, drugs…)", value=True)
     use_nsfw   = st.toggle("🔞 NSFW Content Detection", value=True)
     use_scene  = st.toggle("🎬 Scene Classification", value=True)
-    use_audio  = st.toggle("🎵 Audio Transcription & Analysis", value=True)
     use_motion = st.toggle("🌊 Optical Flow Motion Analysis", value=True)
     use_action = st.toggle("🤺 Action Recognition (Poses)", value=True)
     use_anomaly = st.toggle("🧮 Statistical Anomaly Detector", value=True)
@@ -315,7 +304,6 @@ with st.sidebar:
 | 🎯 YOLOv8 | Weapons, bottles, syringes |
 | 🔞 NudeNet | Adult / explicit content |
 | 🎬 MobileNetV2 | Risky scene contexts |
-| 🎵 Whisper | Profanity, hate speech, drug references |
 | 🌊 Optical Flow | Violent / chaotic motion spikes |
 | 🤺 MediaPipe | Aggressive human actions & fighting stances |
 | 🧮 Statistics | Z-Score based temporal anomaly detection |
@@ -331,11 +319,10 @@ with st.sidebar:
 # ─────────────────────────────────────────────
 # TABS
 # ─────────────────────────────────────────────
-tab1, tab2, tab3, tab4 = st.tabs([
+tab1, tab2, tab3 = st.tabs([
     "📤 Upload & Analyse",
     "📊 Results Dashboard",
     "🔎 Frame Inspector",
-    "🎵 Audio Analysis",
 ])
 
 
@@ -346,7 +333,6 @@ with tab1:
     if st.session_state.analysis_complete:
         report = st.session_state.results["report"]
         risk   = report.get("overall_risk", "UNKNOWN")
-        audio  = st.session_state.results.get("audio", {})
 
         if risk == "SAFE":
             st.success("✅ Analysis complete — this video appears **SAFE**.")
@@ -356,12 +342,6 @@ with tab1:
             st.error(f"🚨 Analysis complete — **{risk}** detected. This video likely violates ad policies.")
 
         st.markdown(f"**Summary:** {report.get('summary_text', '')}")
-
-        # Audio quick-summary
-        if audio.get("available") and audio.get("violation_detected"):
-            st.error(f"🎵 Audio violations: {', '.join(audio.get('categories', []))} — words: *{', '.join(audio.get('flagged_words', [])[:6])}*")
-        elif audio.get("available"):
-            st.success("🎵 Audio transcript is clean — no policy keywords detected.")
 
         if st.button("🔄 Analyse another video", use_container_width=True):
             st.session_state.analysis_complete = False
@@ -434,7 +414,6 @@ with tab1:
                         "use_object": use_object,
                         "use_nsfw":   use_nsfw,
                         "use_scene":  use_scene,
-                        "use_audio":  use_audio,
                         "use_motion": use_motion,
                         "use_action": use_action,
                         "use_anomaly": use_anomaly,
@@ -455,7 +434,6 @@ with tab2:
     else:
         report = st.session_state.results["report"]
         frames = st.session_state.results.get("frames", [])
-        audio  = st.session_state.results.get("audio", {})
         risk   = report.get("overall_risk", "SAFE")
 
         # ── Metrics ─────────────────────────
@@ -476,8 +454,7 @@ with tab2:
             tags.append("🔞 NSFW Hit")
         if any(f["scene_classification"]["is_flagged"] for f in frames):
             tags.append("🎬 Scene Hit")
-        if audio.get("violation_detected"):
-            tags.append("🎵 Audio Hit")
+
         if any(f.get("optical_flow", {}).get("is_high_motion") for f in frames):
             tags.append("🌊 Motion Hit")
         if any(f.get("action_recognition", {}).get("violation_detected") for f in frames):
@@ -501,7 +478,7 @@ with tab2:
         st.markdown("### 🚨 Flagged Segments")
         segments = report.get("flagged_segments", [])
 
-        if not segments and not audio.get("violation_detected"):
+        if not segments:
             st.success("✅ No violation segments detected.")
         else:
             if segments:
@@ -522,11 +499,7 @@ with tab2:
                     })
                 st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
 
-            if audio.get("violation_detected"):
-                st.warning(
-                    f"🎵 **Audio violation** — categories: {', '.join(audio.get('categories', []))} "
-                    f"| flagged words: *{', '.join(audio.get('flagged_words', [])[:8])}*"
-                )
+
 
         st.divider()
 
@@ -565,7 +538,6 @@ with tab2:
         st.markdown("### 📥 Export Report")
         export_data = {
             "summary": report,
-            "audio_analysis": audio,
             "frames": [
                 {
                     "frame_index": f["frame_index"],
@@ -689,13 +661,12 @@ with tab3:
             st.markdown("---")
             cs = agg.get("component_scores", {})
             st.markdown("**Weighted component scores**")
-            s1, s2, s3, s4, s5, s6 = st.columns(6)
+            s1, s2, s3, s4, s5 = st.columns(5)
             s1.metric("Object",  fmt_pct(cs.get("object_detection", 0)))
             s2.metric("NSFW",    fmt_pct(cs.get("nsfw_detection", 0)))
             s3.metric("Scene",   fmt_pct(cs.get("scene_classification", 0)))
-            s4.metric("Audio",   fmt_pct(cs.get("audio", 0)))
-            s5.metric("Motion",  fmt_pct(cs.get("motion", 0)))
-            s6.metric("Action",  fmt_pct(cs.get("action", 0)))
+            s4.metric("Motion",  fmt_pct(cs.get("motion", 0)))
+            s5.metric("Action",  fmt_pct(cs.get("action", 0)))
 
             if agg.get("is_anomaly") is not None:
                 st.markdown("---")
@@ -723,45 +694,4 @@ with tab3:
                     st.rerun()
 
 
-# ══════════════════════════════════════════════
-# TAB 4 — AUDIO ANALYSIS
-# ══════════════════════════════════════════════
-with tab4:
-    if not st.session_state.analysis_complete:
-        st.info("📤 Analyse a video first to see audio results.")
-    else:
-        audio = st.session_state.results.get("audio", {})
 
-        st.markdown("### 🎵 Audio Transcription & Policy Analysis")
-
-        if not audio.get("available"):
-            st.warning("⚠️ Audio analysis was disabled or Whisper is not installed. Run `pip install openai-whisper` and enable the module in the sidebar.")
-        else:
-            a1, a2 = st.columns([1, 2])
-            with a1:
-                st.metric("Violation Detected", "🚨 YES" if audio.get("violation_detected") else "✅ NO")
-                st.metric("Audio Risk Score",   fmt_pct(audio.get("confidence", 0)))
-
-            with a2:
-                cats = audio.get("categories", [])
-                words = audio.get("flagged_words", [])
-                if cats:
-                    st.error(f"**Categories flagged:** {', '.join(cats)}")
-                    st.error(f"**Specific words/phrases:** {', '.join(words)}")
-                else:
-                    st.success("No policy-violating keywords found in the audio.")
-
-            st.divider()
-            st.markdown("### 📜 Full Transcript")
-            transcript = audio.get("transcript", "").strip()
-
-            if transcript:
-                # Highlight banned words in the transcript
-                highlighted = transcript
-                for word in audio.get("flagged_words", []):
-                    highlighted = highlighted.replace(
-                        word, f"**:red[{word}]**"
-                    )
-                st.markdown(highlighted)
-            else:
-                st.info("No speech was detected in this video, or the audio track is silent.")

@@ -1,9 +1,11 @@
 import cv2
 import math
+import os
 
 class ActionRecognizer:
     def __init__(self):
         self.available = False
+        self.prev_wrists = None  # To store [(l_x, l_y), (r_x, r_y)] for momentum parsing
         try:
             import mediapipe as mp
             self.mp_pose = mp.solutions.pose
@@ -21,7 +23,8 @@ class ActionRecognizer:
 
     def analyze(self, frame_path: str, annotated_dir: str) -> dict:
         """
-        Uses MediaPipe Pose to detect aggressive physical actions (e.g. fighting stance).
+        Uses MediaPipe Pose to detect aggressive physical actions (e.g. striking/fighting).
+        Now uses velocity and proportional distance heuristics to eliminate false positives.
         """
         result_dict = {
             "violation_detected": False,
@@ -61,35 +64,35 @@ class ActionRecognizer:
                 confidence = 0.0
                 
                 if vis:
-                    # Heuristic 1: Raised fists (Fighting Stance)
-                    # Wrists are above or at shoulder level, and close to each other / body center
-                    wrists_above_shoulders = (l_wrist.y < l_shoulder.y) or (r_wrist.y < r_shoulder.y)
+                    # Dynamic torso scale based on shoulder width
+                    shoulder_dx = l_shoulder.x - r_shoulder.x
+                    shoulder_dy = l_shoulder.y - r_shoulder.y
+                    shoulder_width = math.sqrt(shoulder_dx**2 + shoulder_dy**2)
+                    shoulder_width = max(shoulder_width, 0.05)  
                     
-                    # Calculate distance from wrists to nose
-                    dx_l = l_wrist.x - nose.x
-                    dy_l = l_wrist.y - nose.y
-                    dist_l = math.sqrt(dx_l**2 + dy_l**2)
+                    chest_y = (l_shoulder.y + r_shoulder.y) / 2.0
                     
-                    dx_r = r_wrist.x - nose.x
-                    dy_r = r_wrist.y - nose.y
-                    dist_r = math.sqrt(dx_r**2 + dy_r**2)
+                    # 1. High Striking: Hand is raised extremely high above the head (e.g. wielding a weapon downwards)
+                    striking_high = (l_wrist.y < (nose.y - shoulder_width)) or (r_wrist.y < (nose.y - shoulder_width))
                     
-                    # If hands are raised and brought close to face -> fighting guard
-                    if wrists_above_shoulders and (dist_l < 0.25 or dist_r < 0.25):
+                    # 2. Combat Guard: Both hands are raised tightly near the face/chest level
+                    l_guarding = l_wrist.y < chest_y and abs(l_wrist.x - nose.x) < shoulder_width * 1.2
+                    r_guarding = r_wrist.y < chest_y and abs(r_wrist.x - nose.x) < shoulder_width * 1.2
+                    boxing_guard = (l_guarding and r_guarding)
+                    
+                    # Aggression requires either a combat stance or an extreme wind-up strike
+                    if boxing_guard or striking_high:
                         is_aggressive = True
                         confidence = 0.85
-                        result_dict["action"] = "Aggressive Stance / Fighting Position"
+                        result_dict["action"] = "Combat Stance / Striking"
                 
                 if is_aggressive:
                     result_dict["violation_detected"] = True
                     result_dict["confidence"] = confidence
                     
-                # Always draw landmarks for visual effect
-                import os
                 base_name = os.path.basename(frame_path)
                 annotated_path = os.path.join(annotated_dir, f"action_{base_name}")
                 
-                # Draw skeleton
                 annotated_image = frame.copy()
                 self.mp_drawing.draw_landmarks(
                     annotated_image,
@@ -100,7 +103,7 @@ class ActionRecognizer:
                 )
                 
                 if is_aggressive:
-                    cv2.putText(annotated_image, f"ACTION: {result_dict['action']}", (10, 50), 
+                    cv2.putText(annotated_image, f"ACTION: {result_dict['action']}!", (10, 50), 
                                 cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
                                 
                 cv2.imwrite(annotated_path, annotated_image)

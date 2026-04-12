@@ -6,8 +6,11 @@ import config
 class NSFWDetector:
     def __init__(self):
         self.available = False
-        self.safe_labels = set(config.NSFW_SAFE_LABELS)
-        self.threshold   = config.NSFW_CONFIDENCE_THRESHOLD   # 0.40
+        self.violation_labels = set(getattr(config, "NSFW_VIOLATION_LABELS", [
+            "FEMALE_GENITALIA_EXPOSED", "MALE_GENITALIA_EXPOSED", 
+            "FEMALE_BREAST_EXPOSED", "ANUS_EXPOSED", "BUTTOCKS_EXPOSED"
+        ]))
+        self.threshold = config.NSFW_CONFIDENCE_THRESHOLD   # 0.40
 
         try:
             from nudenet import NudeDetector
@@ -21,9 +24,8 @@ class NSFWDetector:
     def analyze(self, frame_path: str) -> dict:
         """
         Runs NudeNet NSFW detection.
-        - Uses config.NSFW_CONFIDENCE_THRESHOLD (0.40) instead of hardcoded 0.5
-        - Filters out safe/benign NudeNet labels defined in config.NSFW_SAFE_LABELS
-        - Returns all non-safe detections above threshold
+        - Uses explicit violation list (NSFW_VIOLATION_LABELS) rather than guessing against safe lists.
+        - Fixes bug where 'FEMALE_BREAST_COVERED' would repeatedly trigger false violations.
         """
         result_dict = {
             "violation_detected": False,
@@ -49,12 +51,8 @@ class NSFWDetector:
                     "label": label, "score": round(score, 4)
                 })
 
-                # Skip benign labels
-                if label in self.safe_labels:
-                    continue
-
-                # Flag if above threshold
-                if score >= self.threshold:
+                # Check if it is explicitly an explicit violation
+                if label in self.violation_labels and score >= self.threshold:
                     categories.add(label)
                     max_conf = max(max_conf, score)
 

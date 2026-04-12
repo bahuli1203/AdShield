@@ -1,48 +1,37 @@
 import cv2
 import os
-import urllib.request
-import sys
 
 import sys
-import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import config
 
 class FaceProcessor:
     def __init__(self):
-        assets_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "assets")
-        if not os.path.exists(assets_dir):
-            os.makedirs(assets_dir)
-            
-        self.cascade_path = os.path.join(assets_dir, "haarcascade_frontalface_default.xml")
-        
-        # Download Haar cascade if not exists
-        if not os.path.exists(self.cascade_path):
-            print("Downloading face cascade classifier...")
-            url = "https://raw.githubusercontent.com/opencv/opencv/master/data/haarcascades/haarcascade_frontalface_default.xml"
-            try:
-                urllib.request.urlretrieve(url, self.cascade_path)
-            except Exception as e:
-                print(f"Failed to download Haar cascade: {e}")
-                
-        # Initialize classifier
+        self.available = False
         try:
-            self.face_cascade = cv2.CascadeClassifier(self.cascade_path)
+            import mediapipe as mp
+            self.mp_face_detection = mp.solutions.face_detection
+            # model_selection=1 handles faces farther away as well as close-up
+            self.face_detection = self.mp_face_detection.FaceDetection(
+                model_selection=1, min_detection_confidence=0.5
+            )
+            self.available = True
+        except ImportError:
+            print("Warning: mediapipe not installed. Face processing will be skipped.")
         except Exception as e:
-            print(f"Failed to load face cascade: {e}")
-            self.face_cascade = None
+            print(f"Failed to load mediapipe face detection: {e}")
 
     def process(self, frame_path: str, mask=True) -> dict:
         """
-        Detects faces in the frame. If mask=True, applies a blur to the faces.
-        Returns the number of detected faces and the path to the annotated frame.
+        Detects faces in the frame using MediaPipe and applies a dynamically scaled blur mask.
+        Returns the number of detected faces and the path to the newly processed frame.
         """
         result_dict = {
             "faces_detected": 0,
             "processed_frame_path": frame_path 
         }
 
-        if self.face_cascade is None or self.face_cascade.empty():
+        if not self.available:
             return result_dict
 
         try:
@@ -50,25 +39,47 @@ class FaceProcessor:
             if frame is None:
                 return result_dict
 
-            gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-            faces = self.face_cascade.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=5, minSize=(30, 30))
+            # MediaPipe expects RGB format images
+            image_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            results = self.face_detection.process(image_rgb)
+            
+            faces = []
+            img_h, img_w, _ = frame.shape
+            
+            if results.detections:
+                for detection in results.detections:
+                    bboxC = detection.location_data.relative_bounding_box
+                    x_min = int(bboxC.xmin * img_w)
+                    y_min = int(bboxC.ymin * img_h)
+                    width = int(bboxC.width * img_w)
+                    height = int(bboxC.height * img_h)
+                    
+                    # Prevent coordinates from bleeding out of frame boundaries
+                    x = max(0, x_min)
+                    y = max(0, y_min)
+                    w = min(img_w - x, width)
+                    h = min(img_h - y, height)
+                    
+                    if w > 0 and h > 0:
+                        faces.append((x, y, w, h))
 
             result_dict["faces_detected"] = len(faces)
 
             if len(faces) > 0 and mask:
                 for (x, y, w, h) in faces:
-                    # Extract the region of interest (ROI)
                     roi = frame[y:y+h, x:x+w]
                     
-                    # Apply Gaussian blur
-                    blur_val = config.FACE_MASK_BLUR
-                    # Ensure blur values are odd
+                    # Completely dynamic blur scalar. The blur kernel will always be roughly 60% of the face width.
+                    # This prevents the program from crashing on tiny faces and prevents huge faces from remaining readable.
+                    blur_val = max(3, int(w * 0.6))
+                    
+                    # OpenCV blur algorithms mandate odd numbers
                     if blur_val % 2 == 0:
                         blur_val += 1
                         
                     blurred_roi = cv2.GaussianBlur(roi, (blur_val, blur_val), 0)
                     
-                    # Place the blurred ROI back into the original image
+                    # Lock the successfully blurred subset back down into our main frame structure
                     frame[y:y+h, x:x+w] = blurred_roi
 
                 base_name = os.path.basename(frame_path)
