@@ -97,6 +97,7 @@ export const defaultModules = {
   sceneClassification: true,
   motionAnalysis: true,
   actionRecognition: true,
+  audioAnalysis: true,
   anomalyDetection: true,
 }
 

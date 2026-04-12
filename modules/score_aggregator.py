@@ -9,7 +9,7 @@ class ScoreAggregator:
         self.multi_boost = config.MULTI_SIGNAL_BOOST
 
     def aggregate(self, object_result, nsfw_result, scene_result,
-                  motion_result=None, action_result=None) -> dict:
+                  motion_result=None, action_result=None, audio_result=None) -> dict:
         """
         Combines all model results into one final weighted violation score.
 
@@ -29,6 +29,7 @@ class ScoreAggregator:
         scene_score  = scene_result.get("confidence",    0.0) if scene_result.get("is_flagged")           else 0.0
         motion_score = motion_result.get("motion_score", 0.0) if (motion_result and motion_result.get("is_high_motion")) else 0.0
         action_score = action_result.get("confidence",   0.0) if (action_result and action_result.get("violation_detected")) else 0.0
+        audio_score  = audio_result.get("confidence",    0.0) if (audio_result and audio_result.get("violation_detected")) else 0.0
 
         # Severity-aware object boost: critical detections (firearms, blades) get a 1.25x multiplier
         obj_severity = object_result.get("severity", "none")
@@ -46,6 +47,7 @@ class ScoreAggregator:
         # ── Per-detector clamping ───────────────────────────────────────────
         obj_score    = min(obj_score,    1.0)
         nsfw_score   = min(nsfw_score,   1.0)
+        audio_score  = min(audio_score,  1.0)
         scene_score  = min(scene_score,  0.90)
 
         # ── CLIP scene confidence gate — dampen weak/uncertain predictions ───
@@ -59,7 +61,8 @@ class ScoreAggregator:
             nsfw_score      * w.get("nsfw_detection",       0.75) +
             scene_score     * w.get("scene_classification", 0.35) +
             motion_score    * w.get("motion",               0.20) +
-            action_score    * w.get("action_recognition",   0.60)
+            action_score    * w.get("action_recognition",   0.60) +
+            audio_score     * w.get("audio_analysis",       0.80)
         )
 
         # ── Explicit Policy Breach Guarantees ───────────────────────────────
@@ -69,6 +72,8 @@ class ScoreAggregator:
             weighted_sum = max(weighted_sum, 0.76) # Force HIGH RISK
         elif obj_severity == "critical" and obj_score > 0.50:
             weighted_sum = max(weighted_sum, 0.76) # Force HIGH RISK
+        elif audio_score > 0.50:
+            weighted_sum = max(weighted_sum, 0.76) # Force HIGH RISK for Profanity
 
         # ── Multi-signal corroboration boost ────────────────────────────────
         # Independent strong detector signals (>0.15) corroborate each other
@@ -78,6 +83,7 @@ class ScoreAggregator:
             1 if scene_score  > 0.15 else 0,
             1 if motion_score > 0.15 else 0,
             1 if action_score > 0.15 else 0,
+            1 if audio_score  > 0.15 else 0,
         ])
 
         if signals_fired >= 2:
@@ -123,6 +129,10 @@ class ScoreAggregator:
         if action_result and action_result.get("violation_detected"):
             reasons.append(f"Aggressive action detected: {action_result.get('action')} (conf {action_score:.0%})")
 
+        if audio_result and audio_result.get("violation_detected"):
+            words = ", ".join(audio_result.get("matched_words", []))
+            reasons.append(f"Profanity/Hate speech detected: '{words}' (conf {audio_score:.0%})")
+
         if signals_fired >= 2:
             reasons.append(f"⚡ {signals_fired} independent detectors corroborated — confidence boosted")
 
@@ -138,5 +148,6 @@ class ScoreAggregator:
                 "scene_classification":round(scene_score,   4),
                 "motion":              round(motion_score,  4),
                 "action":              round(action_score,  4),
+                "audio":               round(audio_score,   4),
             },
         }

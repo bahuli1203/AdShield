@@ -62,6 +62,7 @@ async def analyse_video(
     use_action:   bool = Form(True),
     use_anomaly:  bool = Form(True),
     mask_faces:   bool = Form(True),
+    use_audio:    bool = Form(True),
 ):
     """
     Accept a video file upload or YouTube URL, run the full AdShield analysis,
@@ -78,6 +79,7 @@ async def analyse_video(
     from modules.optical_flow     import OpticalFlowAnalyzer
     from modules.action_recognizer import ActionRecognizer
     from modules.anomaly_detector  import AnomalyDetector
+    from modules.audio_analyzer    import AudioAnalyzer
 
     # ── Resolve video path ──────────────────────────────────────────────────
     if file:
@@ -106,6 +108,7 @@ async def analyse_video(
     flow_anal  = OpticalFlowAnalyzer(motion_threshold=config.MOTION_THRESHOLD) if use_motion else None
     action_rec = ActionRecognizer()           if use_action else None
     anomaly_det = AnomalyDetector()           if use_anomaly else None
+    audio_anal  = AudioAnalyzer()             if use_audio else None
     score_agg  = ScoreAggregator()
     report_gen = ReportGenerator(results_dir=str(RESULTS_DIR))
 
@@ -117,6 +120,14 @@ async def analyse_video(
 
     if not frames_meta:
         raise HTTPException(status_code=400, detail="No frames extracted from video")
+
+    # ── Extract audio profile ───────────────────────────────────────────────
+    audio_segments = []
+    if audio_anal:
+        try:
+            audio_segments = audio_anal.process_video(video_path, str(RESULTS_DIR))
+        except Exception as e:
+            print(f"Audio analysis failed: {e}")
 
     all_res = []
 
@@ -158,9 +169,20 @@ async def analyse_video(
                 annotated_path = b_action.get("annotated_frame_path", annotated_path)
             except: pass
 
+        b_audio = {"violation_detected": False, "confidence": 0.0, "matched_words": [], "text": ""}
+        timestamp_sec = fm["timestamp"]
+        for seg in audio_segments:
+            # Add small 1-second buffer to the tail so the flag stays active on screen
+            if seg["start"] <= timestamp_sec <= (seg["end"] + 1.0):
+                b_audio["violation_detected"] = True
+                b_audio["confidence"] = seg["confidence"]
+                b_audio["matched_words"].extend(w for w in seg["matched_words"] if w not in b_audio["matched_words"])
+                b_audio["text"] = seg["text"]
+
         try:
-            b_agg = score_agg.aggregate(b_obj, b_nsfw, b_scene, b_motion, b_action)
-        except:
+            b_agg = score_agg.aggregate(b_obj, b_nsfw, b_scene, b_motion, b_action, b_audio)
+        except Exception as e:
+            print(f"Aggregation failed: {e}")
             b_agg = {"final_score": 0.0, "risk_level": "SAFE", "violation_reasons": [], "signals_fired": 0, "component_scores": {}}
 
         all_res.append({
@@ -177,6 +199,7 @@ async def analyse_video(
             "scene_classification":b_scene,
             "optical_flow":        b_motion,
             "action_recognition":  {k: v for k, v in b_action.items() if "path" not in k},
+            "audio_analysis":      b_audio,
             "face_processing":     {"faces_detected": b_face.get("faces_detected", 0)},
             "aggregated":          b_agg,
         })
@@ -205,6 +228,7 @@ async def analyse_video(
         "motionHit": any(r["optical_flow"].get("is_high_motion")         for r in all_res),
         "actionHit": any(r["action_recognition"].get("violation_detected") for r in all_res),
         "anomalyHit":any(r["aggregated"].get("is_anomaly")               for r in all_res),
+        "audioHit":  any(r["audio_analysis"].get("violation_detected")   for r in all_res),
     }
 
     flagged_frames = [r for r in all_res if r["aggregated"]["final_score"] >= violation_threshold]

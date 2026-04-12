@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion'
-import { Target, ShieldOff, Film, Waves, PersonStanding, BarChart3, Eye } from 'lucide-react'
+import { Target, ShieldOff, Film, Waves, PersonStanding, BarChart3, Mic } from 'lucide-react'
 
 const MODULES = [
   { key: 'objectDetection',    icon: Target,          label: 'Object Detection',      sub: 'YOLO-World: guns, knives, syringes' },
@@ -7,6 +7,7 @@ const MODULES = [
   { key: 'sceneClassification',icon: Film,            label: 'Scene Classification',  sub: 'CLIP zero-shot scene understanding' },
   { key: 'motionAnalysis',     icon: Waves,           label: 'Optical Flow Motion',   sub: 'Detects violent/chaotic motion' },
   { key: 'actionRecognition',  icon: PersonStanding,  label: 'Action Recognition',    sub: 'MediaPipe combat pose detection' },
+  { key: 'audioAnalysis',      icon: Mic,             label: 'Audio Policy Check',    sub: 'Whisper AI Profanity & Hate Speech detection' },
   { key: 'anomalyDetection',   icon: BarChart3,       label: 'Anomaly Detection',     sub: 'Z-score statistical spike detection' },
 ]
 

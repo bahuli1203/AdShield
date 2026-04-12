@@ -106,7 +106,15 @@ NSFW_VIOLATION_LABELS = [
     "FEMALE_GENITALIA_EXPOSED",
     "MALE_GENITALIA_EXPOSED",
     "FEMALE_BREAST_EXPOSED",
+    "ANUS_EXPOSED",
     "BUTTOCKS_EXPOSED"
+]
+
+# ─── Audio Analysis ────────────────────────────
+# Explicit hate speech or severe profanity that triggers an automatic violation
+PROFANITY_LIST = [
+    "fuck", "fucking", "shit", "bitch", "cunt", "slut", "whore", 
+    "asshole", "nigger", "faggot", "retard", "kill yourself"
 ]
 
 # ─── Score weights ────────────────────────────
@@ -118,6 +126,7 @@ SCORE_WEIGHTS = {
     "scene_classification": 0.35,
     "motion":              0.20,
     "action_recognition":  0.60,
+    "audio_analysis":      0.80,
 }
 
 # Multi-signal boost: when ≥2 different detectors fire, add this bonus
