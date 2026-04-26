@@ -111,11 +111,8 @@ NSFW_VIOLATION_LABELS = [
 ]
 
 # ─── Audio Analysis ────────────────────────────
-# Explicit hate speech or severe profanity that triggers an automatic violation
-PROFANITY_LIST = [
-    "fuck", "fucking", "shit", "bitch", "cunt", "slut", "whore", 
-    "asshole", "nigger", "faggot", "retard", "kill yourself"
-]
+# Audio analysis is currently disabled
+PROFANITY_LIST = []
 
 # ─── Score weights ────────────────────────────
 # Each component score is multiplied by its weight before summing.

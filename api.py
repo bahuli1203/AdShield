@@ -53,6 +53,7 @@ def health():
 async def analyse_video(
     file: Optional[UploadFile] = File(None),
     url:  Optional[str]        = Form(None),
+    cookies_browser: Optional[str] = Form(None),
     frame_sample_rate:    float = Form(1.0),
     violation_threshold:  float = Form(0.45),
     use_object:   bool = Form(True),
@@ -91,7 +92,7 @@ async def analyse_video(
     elif url:
         from modules.video_downloader import download_video_from_url
         try:
-            video_path = download_video_from_url(url, str(UPLOADS_DIR))
+            video_path = download_video_from_url(url, str(UPLOADS_DIR), cookies_browser=cookies_browser)
         except Exception as e:
             raise HTTPException(status_code=400, detail=f"Download failed: {e}")
     else:

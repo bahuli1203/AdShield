@@ -19,6 +19,7 @@ export default function VideoUpload({ onResult, settings, modules }) {
   const [mode, setMode]       = useState('file')
   const [file, setFile]       = useState(null)
   const [url, setUrl]         = useState('')
+  const [cookiesBrowser, setCookiesBrowser] = useState('')
   const [dragging, setDragging] = useState(false)
   const [loading, setLoading] = useState(false)
   const [stepIdx, setStepIdx] = useState(0)
@@ -47,6 +48,7 @@ export default function VideoUpload({ onResult, settings, modules }) {
       const form = new FormData()
       if (mode === 'file' && file)  form.append('file', file)
       if (mode === 'url' && url)    form.append('url', url)
+      if (cookiesBrowser)           form.append('cookies_browser', cookiesBrowser)
 
       form.append('frame_sample_rate',   settings?.frameSampleRate ?? 1)
       form.append('violation_threshold', settings?.violationThreshold ?? 0.45)
@@ -147,12 +149,24 @@ export default function VideoUpload({ onResult, settings, modules }) {
             </div>
           </motion.div>
         ) : (
-          <motion.div key="url" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} className="space-y-2">
+          <motion.div key="url" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} className="space-y-3">
             <div className="flex items-center gap-2 px-4 py-3 bg-white border border-slate-200 rounded-xl transition-all" style={{}} onFocus={e=>e.currentTarget.style.borderColor='#4285F4'} onBlur={e=>e.currentTarget.style.borderColor='#e2e8f0'}>
               <Link size={15} className="text-slate-400 shrink-0" />
               <input type="url" value={url} onChange={e => { setUrl(e.target.value); setError(null) }}
                 placeholder="https://www.youtube.com/watch?v=…"
                 className="flex-1 text-sm text-slate-700 bg-transparent outline-none placeholder-slate-400" />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-slate-600 pl-1">Cookie Source (for age-restricted videos)</label>
+              <select value={cookiesBrowser} onChange={e => setCookiesBrowser(e.target.value)}
+                className="w-full px-3 py-2 text-sm bg-white border border-slate-200 rounded-lg text-slate-700 outline-none transition-all hover:border-slate-300 focus:border-blue-400">
+                <option value="">None (default)</option>
+                <option value="chrome">Chrome</option>
+                <option value="firefox">Firefox</option>
+                <option value="edge">Edge</option>
+                <option value="safari">Safari</option>
+              </select>
+              <p className="text-xs text-slate-400 pl-1">Select your browser if you're logged into YouTube to bypass age restrictions</p>
             </div>
             <p className="text-xs text-slate-400 pl-1">Supports YouTube, Instagram, TikTok, X/Twitter</p>
           </motion.div>
@@ -167,8 +181,12 @@ export default function VideoUpload({ onResult, settings, modules }) {
             <AlertCircle size={14} className="shrink-0 mt-0.5" />
             <div>
               <p className="font-semibold">Analysis failed</p>
-              <p>{error}</p>
-              <button onClick={runDemo} className="mt-1.5 underline font-medium">Run demo with sample data →</button>
+              <p className="whitespace-pre-wrap">{error}</p>
+              {error.includes('Sign in') || error.includes('age') ? (
+                <p className="mt-2 text-xs">💡 Try selecting your browser in the Cookie Source dropdown above</p>
+              ) : (
+                <button onClick={runDemo} className="mt-1.5 underline font-medium">Run demo with sample data →</button>
+              )}
             </div>
           </motion.div>
         )}
